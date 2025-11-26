@@ -43,7 +43,8 @@ router.post("/verify-recaptcha", async (req, res) => {
 
     if (!recaptchaData.success) {
       return res.status(400).json({
-        success: false,
+        verified: false,
+        rateLimitOk: false,
         error: "Verificação reCAPTCHA falhou",
         errors: recaptchaData["error-codes"],
       });
@@ -63,10 +64,12 @@ router.post("/verify-recaptcha", async (req, res) => {
 
       if (tracking?.blocked_until && new Date(tracking.blocked_until) > new Date()) {
         return res.status(429).json({
-          success: false,
+          verified: true,
+          rateLimitOk: false,
           error: "Muitas tentativas. Tente novamente mais tarde.",
-          blocked_until: tracking.blocked_until,
+          blockedUntil: tracking.blocked_until,
         });
+
       }
 
       const newAttemptCount = (tracking?.attempt_count || 0) + 1;
@@ -82,8 +85,8 @@ router.post("/verify-recaptcha", async (req, res) => {
             last_attempt_at: new Date().toISOString(),
             blocked_until: shouldBlock
               ? new Date(
-                  Date.now() + limits.blockMinutes * 60 * 1000
-                ).toISOString()
+                Date.now() + limits.blockMinutes * 60 * 1000
+              ).toISOString()
               : null,
           },
           { onConflict: "identifier,action_type" }
@@ -91,22 +94,27 @@ router.post("/verify-recaptcha", async (req, res) => {
 
       if (shouldBlock) {
         return res.status(429).json({
-          success: false,
-          error: "Muitas tentativas. Você foi temporariamente bloqueado.",
+          verified: true,
+          rateLimitOk: false,
+          error: "Muitas tentativas. Tente novamente mais tarde.",
+          blockedUntil: tracking.blocked_until,
         });
+
       }
     }
 
     // Se chegou até aqui, está tudo certo
     return res.json({
-      success: true,
-      score: recaptchaData.score, // se for v3
+      verified: true,
+      rateLimitOk: true,
+      score: recaptchaData.score,
       action: recaptchaData.action,
     });
   } catch (err) {
     console.error("Erro em /security/verify-recaptcha:", err);
     return res.status(500).json({
-      success: false,
+      verified: false,
+      rateLimitOk: false,
       error: "Erro interno no servidor",
     });
   }
