@@ -147,4 +147,50 @@ router.post("/check-cep-viability", async (req, res) => {
 });
 
 
+router.post("/webhook/send-indicador-to-n8n", async (req, res) => {
+  try {
+    const { full_name, email, whatsapp, city, state } = req.body;
+
+    // Validação simples (só pra evitar lixo)
+    if (!full_name || !email || !whatsapp || !city || !state) {
+      return res
+        .status(400)
+        .json({ error: "Campos obrigatórios faltando no body" });
+    }
+
+    const baseUrl = process.env.N8N_WEBHOOK_INDICADOR_URL;
+    if (!baseUrl) {
+      console.error("ERRO: N8N_WEBHOOK_INDICADOR_URL não configurada no .env");
+      return res.status(500).json({ error: "Webhook N8N não configurado" });
+    }
+
+    const params = new URLSearchParams({
+      full_name,
+      email,
+      whatsapp,
+      city,
+      state,
+    });
+
+    const webhookUrl = `${baseUrl}?${params.toString()}`;
+
+    // 🔥 Fire-and-forget: não damos await, só logamos se der erro
+    fetch(webhookUrl, { method: "GET" }).catch((err) => {
+      console.error("Erro ao chamar webhook n8n:", err);
+    });
+
+    // Respondemos rápido pro Supabase, sem esperar o n8n
+    return res.json({
+      success: true,
+      message: "Dados enviados para o n8n (fire-and-forget)",
+    });
+  } catch (err) {
+    console.error("Erro em /webhook/send-indicador-to-n8n:", err);
+    return res
+      .status(500)
+      .json({ success: false, error: "Erro interno no backend" });
+  }
+});
+
+
 export default router;
