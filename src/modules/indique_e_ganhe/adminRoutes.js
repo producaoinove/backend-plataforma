@@ -28,14 +28,20 @@ router.post("/admin/create-user", async (req, res) => {
       whatsapp,
       city,
       state,
-      role, // ainda podemos usar mais pra frente se quiser
+      role,
     } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ error: "Campos obrigatórios faltando" });
+      return res
+        .status(400)
+        .json({ error: "Campos obrigatórios faltando (email, password)" });
     }
 
-    // 1) Criar usuário no Auth (gatilha o handle_new_user automaticamente)
+    // Opcional: validar role permitida
+    const allowedRoles = ["admin", "vendedor", "indicador", "backoffice", "financeiro"];
+    const finalRole = allowedRoles.includes(role) ? role : "indicador";
+
+    // 1) Criar usuário no Auth (trigger cria profile + role = 'indicador')
     const { data: userCreated, error: createError } =
       await supabaseNioAfiliados.auth.admin.createUser({
         email,
@@ -49,7 +55,7 @@ router.post("/admin/create-user", async (req, res) => {
         },
       });
 
-    if (createError) {
+    if (createError || !userCreated?.user?.id) {
       console.error("Erro ao criar usuário (auth.admin):", createError);
       return res
         .status(500)
@@ -58,15 +64,30 @@ router.post("/admin/create-user", async (req, res) => {
 
     const userId = userCreated.user.id;
 
-    // 2) (Opcional) podemos no futuro atualizar role/perfil se quiser sobrepor algo.
-    // Por enquanto deixamos o trigger fazer tudo
+    // 2) Atualizar role na tabela user_roles, se for diferente de 'indicador'
+    if (finalRole !== "indicador") {
+      const { error: roleError } = await supabaseNioAfiliados
+        .from("user_roles")
+        .update({ role: finalRole })
+        .eq("user_id", userId);
+
+      if (roleError) {
+        console.error("Erro ao atualizar role:", roleError);
+        // Usuário existe, mas role não foi atualizada
+        return res.status(500).json({
+          error: "Usuário criado, mas erro ao definir role",
+          user_id: userId,
+        });
+      }
+    }
 
     return res.status(201).json({
       message: "Usuário criado com sucesso",
       user_id: userId,
+      role: finalRole,
     });
   } catch (err) {
-    console.error("Erro interno em admin/create-user:", err);
+    console.error("Erro interno em /admin/create-user:", err);
     return res
       .status(500)
       .json({ error: "Erro interno no servidor ao criar usuário" });
