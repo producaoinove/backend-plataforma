@@ -6,6 +6,8 @@ import indiqueRoutes from "./modules/indique_e_ganhe/routes.js";
 import indiqueAdminRoutes from "./modules/indique_e_ganhe/adminRoutes.js";
 import uraRoutes from "./modules/sistema_ura/routes.js";
 import securityRoutes from "./modules/indique_e_ganhe/securityRoutes.js";
+import pushRoutes from "./modules/indique_e_ganhe/pushRoutes.js";
+
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -23,6 +25,7 @@ app.get("/healthz", (req, res) => {
 app.use("/api/indique_e_ganhe", indiqueRoutes);
 app.use("/api/indique_e_ganhe", indiqueAdminRoutes); // 👈 mesmo prefixo
 app.use("/api/indique_e_ganhe/security", securityRoutes);
+app.use("/api/indique_e_ganhe/push", pushRoutes); 
 
 app.use("/api/sistema_ura", uraRoutes);
 
